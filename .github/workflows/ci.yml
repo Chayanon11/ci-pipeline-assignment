@@ -1,0 +1,25 @@
+name: Node.js CI # ตั้งชื่อ workflow นี้
+
+on:
+  push:
+    branches:
+      - main # ทำงานเมื่อมีการ push ไปยัง branch main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu ล่าสุด
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3 # ดึงซอร์สโค้ดจาก repo
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16" # ใช้ Node.js เวอร์ชัน 16
+
+      - name: Install dependencies
+        run: npm install # ติดตั้ง dependencies ที่จำเป็น
+
+      - name: Run unit tests
+        run: npm test # รัน unit test
