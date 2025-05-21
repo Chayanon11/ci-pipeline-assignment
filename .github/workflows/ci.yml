@@ -1,25 +1,37 @@
-name: Node.js CI # ตั้งชื่อ workflow นี้
+name: CI with SonarCloud # ชื่อ Workflow ที่จะแสดงในแท็บ Actions
 
 on:
   push:
     branches:
       - main # ทำงานเมื่อมีการ push ไปยัง branch main
+  pull_request:
+    types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้างหรืออัปเดต PR
 
 jobs:
   build:
-    runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu ล่าสุด
+    name: Build and Analyze # ชื่องานที่จะทำใน workflow นี้
+    runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu version ล่าสุด
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3 # ดึงซอร์สโค้ดจาก repo
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Checkout code
+        uses: actions/checkout@v3 # ดึงโค้ดจาก GitHub repository
         with:
-          node-version: "16" # ใช้ Node.js เวอร์ชัน 16
+          fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ Sonar วิเคราะห์ new code ได้ถูกต้อง
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3 # ติดตั้ง Node.js บน runner
+        with:
+          node-version: "18" # ระบุเวอร์ชัน Node.js ที่ต้องการใช้
 
       - name: Install dependencies
-        run: npm install # ติดตั้ง dependencies ที่จำเป็น
+        run: npm install # ติดตั้ง dependencies จาก package.json
 
-      - name: Run unit tests
-        run: npm test # รัน unit test
+      - name: Run tests
+        run: npm test # รัน unit tests (ควรมี coverage report ด้วย)
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2 # ใช้ Action ของ SonarCloud สำหรับสแกนโค้ด
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # ใช้ token ที่เก็บไว้ใน GitHub Secret
+        with:
+          projectBaseDir: . # ระบุ root ของโปรเจคที่มีไฟล์ sonar-project.properties
