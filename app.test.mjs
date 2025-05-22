@@ -1,6 +1,7 @@
 import request from "supertest";
 import app from "./app.mjs";
 import { blogPosts } from "./db/index.mjs";
+import { jest } from '@jest/globals'; 
 
 
 // ทดสอบ endpoint หลัก "/"
@@ -91,40 +92,38 @@ describe("GET /posts/:id", () => {
 
 // ทดสอบการจัดการข้อผิดพลาดต่างๆ
 describe("GET /posts error handling", () => {
-  let originalFilter;
   const originalBlogPosts = [...blogPosts];
-  
-    // เตรียมข้อมูลก่อนการทดสอบแต่ละครั้ง
+  let mockBlogPosts;
+
   beforeEach(() => {
-    // Save original filter method
-    originalFilter = Array.prototype.filter;
-    // Restore original posts before each test
+    // Create a fresh copy of blog posts before each test
+    mockBlogPosts = [...originalBlogPosts];
     while (blogPosts.length) blogPosts.pop();
-    originalBlogPosts.forEach(post => blogPosts.push(post));
+    mockBlogPosts.forEach(post => blogPosts.push(post));
   });
 
-    // คืนค่าเดิมหลังการทดสอบแต่ละครั้ง
-  afterEach(() => {
-    // Restore original filter method
-    Array.prototype.filter = originalFilter;
-  });
-
-    // ทำความสะอาดข้อมูลหลังเสร็จการทดสอบทั้งหมด
   afterAll(() => {
     // Cleanup after all tests
     while (blogPosts.length) blogPosts.pop();
     originalBlogPosts.forEach(post => blogPosts.push(post));
   });
 
-    // ทดสอบการจัดการข้อผิดพลาดของเซิร์ฟเวอร์
+  // ทดสอบการจัดการข้อผิดพลาดของเซิร์ฟเวอร์
   it("should handle server errors gracefully", async () => {
-    Array.prototype.filter = function() {
+    const mockFilter = jest.fn().mockImplementation(() => {
       throw new Error('Simulated error');
-    };
+    });
+    
+    const originalFilter = blogPosts.filter;
+    blogPosts.filter = mockFilter;
 
-    const res = await request(app).get("/posts?category=test");
-    expect(res.statusCode).toBe(500);
-    expect(res.body).toHaveProperty("message", "Simulated error");
+    try {
+      const res = await request(app).get("/posts?category=test");
+      expect(res.statusCode).toBe(500);
+      expect(res.body).toHaveProperty("message", "Simulated error");
+    } finally {
+      blogPosts.filter = originalFilter;
+    }
   });
 
     // ทดสอบกรณีไม่พบผลลัพธ์จากการค้นหา
