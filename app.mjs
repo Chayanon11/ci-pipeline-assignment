@@ -14,13 +14,30 @@ app.get("/", (req, res) => {
 
 app.get("/posts", (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 6;
+    const page = req.query.page;
+    const limit = req.query.limit;
     const category = req.query.category || "";
     const keyword = req.query.keyword || "";
 
-    const safePage = Math.max(1, page);
-    const safeLimit = Math.max(1, Math.min(100, limit));
+    // Validate pagination parameters
+    if (page && isNaN(Number(page)) || limit && isNaN(Number(limit))) {
+      return res.status(400).json({
+        message: "Invalid pagination parameters"
+      });
+    }
+
+    const numPage = Number(page) || 1;
+    const numLimit = Number(limit) || 6;
+
+    const safePage = Math.max(1, numPage);
+    const safeLimit = Math.max(1, Math.min(100, numLimit));
+
+    // Handle extremely large numbers that might cause performance issues
+    if (safePage > 1000000 || safeLimit > 1000000) {
+      return res.status(500).json({
+        message: "Pagination values too large"
+      });
+    }
 
     let filteredPosts = blogPosts;
     if (category) {
@@ -60,8 +77,8 @@ app.get("/posts", (req, res) => {
 
     return res.json(results);
   } catch (e) {
-    return res.json({
-      message: e.message,
+    return res.status(500).json({
+      message: e.message
     });
   }
 });

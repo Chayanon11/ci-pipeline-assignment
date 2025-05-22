@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.mjs",
     "devStart": "nodemon server.mjs",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage"
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "test-local": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "keywords": [],
   "author": "",
