@@ -2,12 +2,15 @@ import request from "supertest";
 import app from "./app.mjs";
 import { blogPosts } from "./db/index.mjs";
 import { jest } from '@jest/globals'; 
+import helmet from 'helmet';
 
 
 // ทดสอบ endpoint หลัก "/"
 describe("GET /", () => {
   it("should return Hello TechUp!", async () => {
-    const res = await request(app).get("/");
+    const res = await request(app)
+      .get("/")
+      .set('Origin', 'http://localhost:3000'); 
     expect(res.statusCode).toBe(200);
     expect(res.text).toBe("Hello TechUp!");
   });
@@ -15,10 +18,10 @@ describe("GET /", () => {
 
 // ทดสอบการดึงรายการบทความ
 describe("GET /posts", () => {
-
-  // ทดสอบการแสดงรายการบทความพร้อมข้อมูลการแบ่งหน้า
   it("should return list of posts with pagination info", async () => {
-    const res = await request(app).get("/posts");
+    const res = await request(app)
+      .get("/posts")
+      .set('Origin', 'http://localhost:3000');
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("posts");
     expect(res.body).toHaveProperty("totalPosts");
