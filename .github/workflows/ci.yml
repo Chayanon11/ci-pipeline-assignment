@@ -1,126 +1,45 @@
-name: CI with SonarCloud Analysis
+name: CI with SonarCloud # ชื่อ Workflow ที่จะแสดงในแท็บ Actions
 
 on:
   push:
     branches:
-      - main
-      - develop
+      - main # ทำงานเมื่อมีการ push ไปยัง branch main
   pull_request:
-    types: [opened, synchronize, reopened]
-
-env:
-  NODE_VERSION: "18"
+    types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้างหรืออัปเดต PR
 
 jobs:
-  test:
-    name: Test and Coverage
-    runs-on: ubuntu-latest
+  build:
+    name: Build and Analyze # ชื่องานที่จะทำใน workflow นี้
+    runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu version ล่าสุด
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # ดึงโค้ดจาก GitHub repository (updated to v4)
         with:
-          fetch-depth: 0 # Shallow clones should be disabled for better relevancy of analysis
+          fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ Sonar วิเคราะห์ new code ได้ถูกต้อง
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4 # ติดตั้ง Node.js บน runner (updated to v4)
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+          node-version: "18" # ระบุเวอร์ชัน Node.js ที่ต้องการใช้
+          cache: "npm" # เพิ่ม npm cache เพื่อความเร็ว
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci # ใช้ npm ci แทน npm install เพื่อความเร็วและความน่าเชื่อถือ
 
       - name: Run security audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: false
+        run: npm audit --audit-level=moderate # ตรวจสอบ security vulnerabilities
+        continue-on-error: false # หยุด workflow หากพบ vulnerability
 
-      - name: Run tests with coverage
-        run: npm run test:ci
+      - name: Run tests
+        run: npm run test:ci # รัน unit tests พร้อม coverage report
         env:
-          NODE_ENV: test
-
-      - name: Upload test coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage/lcov.info
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-
-      - name: Run ESLint
-        run: npm run lint -- --format json --output-file eslint-report.json
-        continue-on-error: true
-
-  sonarcloud:
-    name: SonarCloud Analysis
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Disable shallow clone for better analysis
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests for coverage
-        run: npm run coverage
-        env:
-          NODE_ENV: test
+          NODE_ENV: test # ตั้งค่า environment เป็น test
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2.3.0
+        uses: SonarSource/sonarcloud-github-action@v2.3.0 # ใช้ Action ของ SonarCloud สำหรับสแกนโค้ด
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub token สำหรับ PR analysis
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # ใช้ token ที่เก็บไว้ใน GitHub Secret
         with:
-          args: >
-            -Dsonar.projectKey=Chayanon11_ci-pipeline-assignment
-            -Dsonar.organization=chayanon11
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.sources=app.mjs,server.mjs,db
-            -Dsonar.tests=.
-            -Dsonar.test.inclusions=**/*.test.mjs
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/*.test.mjs,jest.config.js,vercel.json
-            -Dsonar.cpd.exclusions=**/*.test.mjs
-            -Dsonar.qualitygate.wait=true
-
-  security:
-    name: Security Analysis
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run npm audit
-        run: npm audit --audit-level=moderate
-
-      - name: Check for known vulnerabilities
-        run: |
-          if npm audit --audit-level=high --json | jq '.vulnerabilities | length' | grep -q '^0$'; then
-            echo "✅ No high-severity vulnerabilities found"
-          else
-            echo "❌ High-severity vulnerabilities found"
-            npm audit --audit-level=high
-            exit 1
-          fi
+          projectBaseDir: . # ระบุ root ของโปรเจคที่มีไฟล์ sonar-project.properties
