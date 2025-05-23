@@ -1,37 +1,126 @@
-name: CI with SonarCloud # ชื่อ Workflow ที่จะแสดงในแท็บ Actions
+name: CI with SonarCloud Analysis
 
 on:
   push:
     branches:
-      - main # ทำงานเมื่อมีการ push ไปยัง branch main
+      - main
+      - develop
   pull_request:
-    types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้างหรืออัปเดต PR
+    types: [opened, synchronize, reopened]
+
+env:
+  NODE_VERSION: "18"
 
 jobs:
-  build:
-    name: Build and Analyze # ชื่องานที่จะทำใน workflow นี้
-    runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu version ล่าสุด
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3 # ดึงโค้ดจาก GitHub repository
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ Sonar วิเคราะห์ new code ได้ถูกต้อง
+          fetch-depth: 0 # Shallow clones should be disabled for better relevancy of analysis
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3 # ติดตั้ง Node.js บน runner
+        uses: actions/setup-node@v4
         with:
-          node-version: "18" # ระบุเวอร์ชัน Node.js ที่ต้องการใช้
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
 
       - name: Install dependencies
-        run: npm install # ติดตั้ง dependencies จาก package.json
+        run: npm ci
 
-      - name: Run tests
-        run: npm test # รัน unit tests (ควรมี coverage report ด้วย)
+      - name: Run security audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: false
+
+      - name: Run tests with coverage
+        run: npm run test:ci
+        env:
+          NODE_ENV: test
+
+      - name: Upload test coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Run ESLint
+        run: npm run lint -- --format json --output-file eslint-report.json
+        continue-on-error: true
+
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Disable shallow clone for better analysis
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests for coverage
+        run: npm run coverage
+        env:
+          NODE_ENV: test
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2 # ใช้ Action ของ SonarCloud สำหรับสแกนโค้ด
+        uses: SonarSource/sonarcloud-github-action@v2.3.0
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # ใช้ token ที่เก็บไว้ใน GitHub Secret
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          projectBaseDir: . # ระบุ root ของโปรเจคที่มีไฟล์ sonar-project.properties
+          args: >
+            -Dsonar.projectKey=Chayanon11_ci-pipeline-assignment
+            -Dsonar.organization=chayanon11
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=app.mjs,server.mjs,db
+            -Dsonar.tests=.
+            -Dsonar.test.inclusions=**/*.test.mjs
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/*.test.mjs,jest.config.js,vercel.json
+            -Dsonar.cpd.exclusions=**/*.test.mjs
+            -Dsonar.qualitygate.wait=true
+
+  security:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+
+      - name: Check for known vulnerabilities
+        run: |
+          if npm audit --audit-level=high --json | jq '.vulnerabilities | length' | grep -q '^0$'; then
+            echo "✅ No high-severity vulnerabilities found"
+          else
+            echo "❌ High-severity vulnerabilities found"
+            npm audit --audit-level=high
+            exit 1
+          fi
