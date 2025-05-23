@@ -1,115 +1,69 @@
-# name: CI with SonarCloud # ชื่อ Workflow ที่จะแสดงในแท็บ Actions
-
-# on:
-#   push:
-#     branches:
-#       - main # ทำงานเมื่อมีการ push ไปยัง branch main
-#   pull_request:
-#     types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้างหรืออัปเดต PR
-
-# jobs:
-#   build:
-#     name: Build and Analyze # ชื่องานที่จะทำใน workflow นี้
-#     runs-on: ubuntu-latest # ใช้ runner ที่เป็น Ubuntu version ล่าสุด
-
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4 # ดึงโค้ดจาก GitHub repository (updated to v4)
-#         with:
-#           fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ Sonar วิเคราะห์ new code ได้ถูกต้อง
-
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v4 # ติดตั้ง Node.js บน runner (updated to v4)
-#         with:
-#           node-version: "18" # ระบุเวอร์ชัน Node.js ที่ต้องการใช้
-#           cache: "npm" # เพิ่ม npm cache เพื่อความเร็ว
-
-#       - name: Install dependencies
-#         run: npm ci # ใช้ npm ci แทน npm install เพื่อความเร็วและความน่าเชื่อถือ
-
-#       - name: Run security audit
-#         run: npm audit --audit-level=moderate # ตรวจสอบ security vulnerabilities
-#         continue-on-error: false # หยุด workflow หากพบ vulnerability
-
-#       - name: Run tests
-#         run: npm run test:ci # รัน unit tests พร้อม coverage report
-#         env:
-#           NODE_ENV: test # ตั้งค่า environment เป็น test
-
-#       - name: SonarCloud Scan
-#         uses: SonarSource/sonarcloud-github-action@v2.3.0 # ใช้ Action ของ SonarCloud สำหรับสแกนโค้ด
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub token สำหรับ PR analysis
-#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # ใช้ token ที่เก็บไว้ใน GitHub Secret
-#         with:
-#           projectBaseDir: . # ระบุ root ของโปรเจคที่มีไฟล์ sonar-project.properties
-
-name: CI with SonarCloud + Deploy to GCP
+name: CI with SonarCloud + Deploy to GCP # ชื่อ Workflow ที่แสดงในแท็บ Actions
 
 on:
   push:
     branches:
-      - main
+      - main # ทำงานเมื่อมีการ push ไปยัง branch main
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้าง อัปเดต หรือเปิด PR ใหม่
 
 jobs:
   build-and-test:
-    name: Build, Test and Analyze
-    runs-on: ubuntu-latest
+    name: Build, Test and Analyze # ชื่องาน CI: Build, Test และ Code Analysis
+    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # ดึงโค้ดจาก GitHub repository
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ SonarCloud วิเคราะห์ได้ถูกต้อง
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4 # ติดตั้ง Node.js บน runner
         with:
-          node-version: "18"
-          cache: "npm"
+          node-version: "18" # ใช้ Node.js เวอร์ชัน 18
+          cache: "npm" # เปิดใช้ npm cache เพื่อความเร็ว
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci # ติดตั้ง dependencies (เร็วกว่า npm install)
 
       - name: Run security audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: false
+        run: npm audit --audit-level=moderate # ตรวจสอบ security vulnerabilities
+        continue-on-error: false # หยุด workflow หากพบปัญหาความปลอดภัย
 
       - name: Run tests
-        run: npm run test:ci
+        run: npm run test:ci # รัน unit tests พร้อม coverage report
         env:
-          NODE_ENV: test
+          NODE_ENV: test # ตั้งค่า environment เป็น test
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2.3.0
+        uses: SonarSource/sonarcloud-github-action@v2.3.0 # ใช้ SonarCloud Action สำหรับ code quality analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub token สำหรับ PR analysis
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # SonarCloud token จาก GitHub Secrets
         with:
-          projectBaseDir: .
+          projectBaseDir: . # ระบุ root directory ของโปรเจค
 
   deploy:
-    name: Deploy to Cloud Run
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
+    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
+    needs: build-and-test # รอให้ job build-and-test เสร็จก่อน
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Deploy เฉพาะเมื่อ push ไปยัง main branch
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # ดึงโค้ดสำหรับ deployment
 
       - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v2 # เชื่อมต่อกับ Google Cloud
         with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+          credentials_json: "${{ secrets.GCP_SA_KEY }}" # ใช้ Service Account key จาก GitHub Secrets
 
       - name: Set up gcloud CLI
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v2 # ติดตั้งและตั้งค่า gcloud CLI
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }} # ระบุ Google Cloud Project ID
 
       - name: Deploy to Cloud Run
-        run: |
+        run: | # คำสั่ง deploy ไปยัง Cloud Run
           gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --source . \
             --region ${{ secrets.GCP_REGION }} \
@@ -121,22 +75,34 @@ jobs:
             --timeout 300 \
             --concurrency 80 \
             --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules
+        # คำอธิบายพารามิเตอร์:
+        # --source . : build จาก source code ใน directory ปัจจุบัน
+        # --region : ภูมิภาคที่ deploy (เช่น asia-southeast1)
+        # --platform managed : ใช้ Cloud Run แบบ fully managed
+        # --allow-unauthenticated : อนุญาตให้เข้าถึงได้โดยไม่ต้อง authenticate
+        # --memory 512Mi : จำกัด memory ที่ 512MB (ประหยัดค่าใช้จ่าย)
+        # --cpu 0.5 : ใช้ CPU 0.5 vCPU
+        # --max-instances 5 : จำกัดจำนวน instances สูงสุด
+        # --timeout 300 : timeout ที่ 5 นาที
+        # --concurrency 80 : จำนวน requests ที่ handle พร้อมกันต่อ instance
+        # --set-env-vars : ตั้งค่า environment variables
 
       - name: Get deployment URL
-        run: |
+        run: | # ดึง URL ของ service ที่ deploy แล้ว
           SERVICE_URL=$(gcloud run services describe ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --region ${{ secrets.GCP_REGION }} \
             --format 'value(status.url)')
-          echo "🚀 Application deployed successfully!"
-          echo "📱 Service URL: $SERVICE_URL"
-          echo "🏥 Health Check: $SERVICE_URL/health"
+          echo "🚀 Application deployed successfully!" # แสดงข้อความสำเร็จ
+          echo "📱 Service URL: $SERVICE_URL" # แสดง URL ของ service
+          echo "🏥 Health Check: $SERVICE_URL/health" # แสดง URL สำหรับ health check
 
       - name: Verify deployment
-        run: |
+        run: | # ตรวจสอบว่า deployment ทำงานถูกต้อง
           SERVICE_URL=$(gcloud run services describe ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --region ${{ secrets.GCP_REGION }} \
             --format 'value(status.url)')
-          echo "Waiting 30 seconds for service to be ready..."
-          sleep 30
-          echo "Testing health endpoint..."
+          echo "Waiting 30 seconds for service to be ready..." # รอให้ service พร้อม
+          sleep 30 # รอ 30 วินาที
+          echo "Testing health endpoint..." # ทดสอบ health endpoint
           curl -f "$SERVICE_URL/health" || echo "⚠️ Health check failed, but deployment completed"
+          # ทดสอบ health check - หาก fail ก็แสดงคำเตือนแต่ deployment จะยังคงเสร็จสมบูรณ์
