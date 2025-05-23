@@ -63,7 +63,7 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }} # ระบุ Google Cloud Project ID
 
       - name: Deploy to Cloud Run
-        run: | # คำสั่ง deploy ไปยัง Cloud Run
+        run: | # คำสั่ง deploy ไปยัง Cloud Run (แก้ไขเพิ่ม --quiet)
           gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --source . \
             --region ${{ secrets.GCP_REGION }} \
@@ -74,7 +74,8 @@ jobs:
             --max-instances 5 \
             --timeout 300 \
             --concurrency 80 \
-            --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules
+            --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules \
+            --quiet
         # คำอธิบายพารามิเตอร์:
         # --source . : build จาก source code ใน directory ปัจจุบัน
         # --region : ภูมิภาคที่ deploy (เช่น asia-southeast1)
@@ -86,6 +87,7 @@ jobs:
         # --timeout 300 : timeout ที่ 5 นาที
         # --concurrency 80 : จำนวน requests ที่ handle พร้อมกันต่อ instance
         # --set-env-vars : ตั้งค่า environment variables
+        # --quiet : ไม่ถามคำถาม interactive และตอบ 'Y' อัตโนมัติ
 
       - name: Get deployment URL
         run: | # ดึง URL ของ service ที่ deploy แล้ว
