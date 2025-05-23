@@ -2,7 +2,7 @@ import request from "supertest";
 import app from "./app.mjs";
 import { blogPosts } from "./db/index.mjs";
 import { jest } from '@jest/globals'; 
-import helmet from 'helmet';
+
 
 
 // ทดสอบ endpoint หลัก "/"
