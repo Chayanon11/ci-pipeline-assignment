@@ -98,6 +98,73 @@ app.get("/", (req, res) => {
   });
 });
 
+// Utility function for filtering posts by category
+function filterByCategory(posts, category) {
+  if (!category) return posts;
+  
+  const sanitizedCategory = sanitizeString(category);
+  if (!sanitizedCategory) return posts;
+  
+  return posts.filter(
+    (post) => sanitizeString(post.category) === sanitizedCategory
+  );
+}
+
+// Utility function for filtering posts by keyword
+function filterByKeyword(posts, keyword) {
+  if (!keyword) return { filteredPosts: posts, error: null };
+  
+  const trimmedKeyword = keyword.trim();
+  if (trimmedKeyword.length > 0 && trimmedKeyword.length < 2) {
+    return { 
+      filteredPosts: posts, 
+      error: "Keyword must be at least 2 characters long" 
+    };
+  }
+  
+  const sanitizedKeyword = sanitizeString(keyword);
+  if (!sanitizedKeyword || sanitizedKeyword.length < 2) {
+    return { filteredPosts: posts, error: null };
+  }
+  
+  const filtered = posts.filter(
+    (post) =>
+      sanitizeString(post.title).includes(sanitizedKeyword) ||
+      sanitizeString(post.description).includes(sanitizedKeyword) ||
+      sanitizeString(post.content).includes(sanitizedKeyword) ||
+      sanitizeString(post.category).includes(sanitizedKeyword)
+  );
+  
+  return { filteredPosts: filtered, error: null };
+}
+
+// Utility function for creating pagination result
+function createPaginationResult(posts, numPage, numLimit) {
+  const startIndex = (numPage - 1) * numLimit;
+  const endIndex = startIndex + numLimit;
+  const totalPages = Math.ceil(posts.length / numLimit);
+
+  const results = {
+    totalPosts: posts.length,
+    totalPages,
+    currentPage: numPage,
+    limit: numLimit,
+    posts: posts.slice(startIndex, endIndex),
+    hasNextPage: endIndex < posts.length,
+    hasPreviousPage: startIndex > 0
+  };
+
+  if (results.hasNextPage) {
+    results.nextPage = numPage + 1;
+  }
+
+  if (results.hasPreviousPage) {
+    results.previousPage = numPage - 1;
+  }
+
+  return results;
+}
+
 app.get("/posts", (req, res) => {
   try {
     const { page, limit, category, keyword } = req.query;
@@ -127,59 +194,25 @@ app.get("/posts", (req, res) => {
     const numPage = Math.max(1, Number(page) || 1);
     const numLimit = Math.max(1, Math.min(100, Number(limit) || 6));
 
-    let filteredPosts = [...blogPosts]; // Create a copy to avoid mutation
+    // Start with a copy of all posts
+    let filteredPosts = [...blogPosts];
 
-    // Filter by category with input sanitization
-    if (category) {
-      const sanitizedCategory = sanitizeString(category);
-      if (sanitizedCategory) {
-        filteredPosts = filteredPosts.filter(
-          (post) => sanitizeString(post.category) === sanitizedCategory
-        );
-      }
+    // Apply category filter
+    filteredPosts = filterByCategory(filteredPosts, category);
+
+    // Apply keyword filter
+    const keywordResult = filterByKeyword(filteredPosts, keyword);
+    if (keywordResult.error) {
+      return res.status(400).json({
+        error: keywordResult.error
+      });
     }
+    filteredPosts = keywordResult.filteredPosts;
 
-    // Search by keyword with input sanitization
-    if (keyword) {
-      const sanitizedKeyword = sanitizeString(keyword);
-      if (sanitizedKeyword && sanitizedKeyword.length >= 2) { // Minimum 2 characters
-        filteredPosts = filteredPosts.filter(
-          (post) =>
-            sanitizeString(post.title).includes(sanitizedKeyword) ||
-            sanitizeString(post.description).includes(sanitizedKeyword) ||
-            sanitizeString(post.content).includes(sanitizedKeyword) ||
-            sanitizeString(post.category).includes(sanitizedKeyword)
-        );
-      } else if (keyword && keyword.trim().length < 2) {
-        return res.status(400).json({
-          error: "Keyword must be at least 2 characters long"
-        });
-      }
-    }
-
-    const startIndex = (numPage - 1) * numLimit;
-    const endIndex = startIndex + numLimit;
-    const totalPages = Math.ceil(filteredPosts.length / numLimit);
-
-    const results = {
-      totalPosts: filteredPosts.length,
-      totalPages,
-      currentPage: numPage,
-      limit: numLimit,
-      posts: filteredPosts.slice(startIndex, endIndex),
-      hasNextPage: endIndex < filteredPosts.length,
-      hasPreviousPage: startIndex > 0
-    };
-
-    if (results.hasNextPage) {
-      results.nextPage = numPage + 1;
-    }
-
-    if (results.hasPreviousPage) {
-      results.previousPage = numPage - 1;
-    }
-
+    // Create and return pagination result
+    const results = createPaginationResult(filteredPosts, numPage, numLimit);
     return res.json(results);
+
   } catch (error) {
     console.error('Error in /posts endpoint:', error);
     return res.status(500).json({
