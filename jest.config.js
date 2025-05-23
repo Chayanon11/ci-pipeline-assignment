@@ -5,7 +5,6 @@ export default {
   collectCoverage: true,
   collectCoverageFrom: [
     "app.mjs",
-    "server.mjs",
     "db/**/*.mjs",
     "!**/node_modules/**",
     "!**/coverage/**"
