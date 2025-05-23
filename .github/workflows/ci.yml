@@ -63,14 +63,14 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }} # ระบุ Google Cloud Project ID
 
       - name: Deploy to Cloud Run
-        run: | # คำสั่ง deploy ไปยัง Cloud Run (แก้ไขเพิ่ม --quiet)
+        run: | # คำสั่ง deploy ไปยัง Cloud Run (แก้ไข CPU เป็น 1)
           gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --source . \
             --region ${{ secrets.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
             --memory 512Mi \
-            --cpu 0.5 \
+            --cpu 1 \
             --max-instances 5 \
             --timeout 300 \
             --concurrency 80 \
@@ -82,7 +82,7 @@ jobs:
         # --platform managed : ใช้ Cloud Run แบบ fully managed
         # --allow-unauthenticated : อนุญาตให้เข้าถึงได้โดยไม่ต้อง authenticate
         # --memory 512Mi : จำกัด memory ที่ 512MB (ประหยัดค่าใช้จ่าย)
-        # --cpu 0.5 : ใช้ CPU 0.5 vCPU
+        # --cpu 1 : ใช้ CPU 1 vCPU (แก้ไขจาก 0.5 เพื่อรองรับ concurrency > 1)
         # --max-instances 5 : จำกัดจำนวน instances สูงสุด
         # --timeout 300 : timeout ที่ 5 นาที
         # --concurrency 80 : จำนวน requests ที่ handle พร้อมกันต่อ instance
