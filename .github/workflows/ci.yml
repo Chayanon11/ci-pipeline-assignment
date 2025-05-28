@@ -44,11 +44,16 @@ jobs:
         with:
           projectBaseDir: . # ระบุ root directory ของโปรเจค
 
-  deploy:
-    name: Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
+  review-and-deploy:
+    name: Review and Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
     needs: build-and-test # รอให้ job build-and-test เสร็จก่อน
     runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Deploy เฉพาะเมื่อ push ไปยัง main branch
+    # Allow deployment after PR review is approved
+    if: |
+      (github.event_name == 'pull_request' && 
+       github.event.review.state == 'approved') ||
+      (github.event_name == 'push' && 
+       github.ref == 'refs/heads/main')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4 # ดึงโค้ดสำหรับ deployment
