@@ -1,3 +1,4 @@
+# Workflow สำหรับ CI/CD บน GitHub Actions
 name: CI with SonarCloud + Deploy to GCP # ชื่อ Workflow ที่แสดงในแท็บ Actions
 
 on:
@@ -10,7 +11,7 @@ on:
 jobs:
   build-and-test:
     name: Build, Test and Analyze # ชื่องาน CI: Build, Test และ Code Analysis
-    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
+    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     steps:
       - name: Checkout code
         uses: actions/checkout@v4 # ดึงโค้ดจาก GitHub repository
@@ -45,8 +46,8 @@ jobs:
 
   deploy:
     name: Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
-    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     needs: build-and-test # รอให้ job build-and-test เสร็จก่อน
+    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Deploy เฉพาะเมื่อ push ไปยัง main branch
     steps:
       - name: Checkout code
@@ -76,18 +77,6 @@ jobs:
             --concurrency 80 \
             --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules \
             --quiet
-        # คำอธิบายพารามิเตอร์:
-        # --source . : build จาก source code ใน directory ปัจจุบัน
-        # --region : ภูมิภาคที่ deploy (เช่น asia-southeast1)
-        # --platform managed : ใช้ Cloud Run แบบ fully managed
-        # --allow-unauthenticated : อนุญาตให้เข้าถึงได้โดยไม่ต้อง authenticate
-        # --memory 512Mi : จำกัด memory ที่ 512MB (ประหยัดค่าใช้จ่าย)
-        # --cpu 1 : ใช้ CPU 1 vCPU (แก้ไขจาก 0.5 เพื่อรองรับ concurrency > 1)
-        # --max-instances 5 : จำกัดจำนวน instances สูงสุด
-        # --timeout 300 : timeout ที่ 5 นาที
-        # --concurrency 80 : จำนวน requests ที่ handle พร้อมกันต่อ instance
-        # --set-env-vars : ตั้งค่า environment variables
-        # --quiet : ไม่ถามคำถาม interactive และตอบ 'Y' อัตโนมัติ
 
       - name: Get deployment URL
         run: | # ดึง URL ของ service ที่ deploy แล้ว
@@ -107,4 +96,3 @@ jobs:
           sleep 30 # รอ 30 วินาที
           echo "Testing health endpoint..." # ทดสอบ health endpoint
           curl -f "$SERVICE_URL/health" || echo "⚠️ Health check failed, but deployment completed"
-          # ทดสอบ health check - หาก fail ก็แสดงคำเตือนแต่ deployment จะยังคงเสร็จสมบูรณ์
