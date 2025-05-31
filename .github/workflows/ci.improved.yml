@@ -1,92 +1,92 @@
-
-name: CI with SonarCloud + Deploy to GCP (Optimized & Standardized) # ชื่อ Workflow ที่แสดงในแท็บ Actions
+# name: CI with SonarCloud + Deploy to GCP (Optimized & Fixed)
 
 on:
   push:
     branches:
-      - main # ทำงานเมื่อมีการ push ไปยัง branch main
+      - main
   pull_request:
-    types: [opened, synchronize, reopened] # ทำงานเมื่อมีการสร้าง อัปเดต หรือเปิด PR ใหม่
+    types: [opened, synchronize, reopened]
 
 jobs:
   build-and-test:
-    name: Build, Test and Analyze # ชื่องาน CI: Build, Test และ Code Analysis
-    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
+    name: Build, Test and Analyze
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1 - ดึงโค้ดจาก GitHub repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          fetch-depth: 0 # ดึง commit history ทั้งหมด เพื่อให้ SonarCloud วิเคราะห์ได้ถูกต้อง
+          fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2 - ติดตั้ง Node.js บน runner
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
         with:
-          node-version: "18" # ใช้ Node.js เวอร์ชัน 18
-          cache: "npm" # เปิดใช้ npm global cache เพื่อความเร็ว
+          node-version: "18"
+          cache: "npm"
 
       - name: Cache node_modules
         id: cache-node-modules
-        uses: actions/cache@ab5e74ddd6150b37941690929790884114729329 # v4.0.2
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2 - CORRECTED SHA
         with:
-          path: node_modules # Path to cache node_modules
+          path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true' # รัน npm ci เฉพาะเมื่อไม่มี cache hit สำหรับ node_modules
-        run: npm ci # ติดตั้ง dependencies (เร็วกว่า npm install)
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
 
-      - name: Install dependencies (from cache)
+      - name: Show message if dependencies restored from cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: echo "Dependencies restored from cache." # แจ้งว่าใช้ dependencies จาก cache
+        run: echo "Dependencies restored from cache."
 
       - name: Run security audit
-        run: npm audit --audit-level=moderate # ตรวจสอบ security vulnerabilities
-        continue-on-error: false # หยุด workflow หากพบปัญหาความปลอดภัย
+        run: npm audit --audit-level=moderate
+        continue-on-error: false
 
       - name: Run tests
-        run: npm run test:ci # รัน unit tests พร้อม coverage report
+        run: npm run test:ci
         env:
-          NODE_ENV: test # ตั้งค่า environment เป็น test
+          NODE_ENV: test
 
       - name: Cache SonarCloud packages
-        uses: actions/cache@ab5e74ddd6150b37941690929790884114729329 # v4.0.2
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2 - CORRECTED SHA
         with:
-          path: ~/.sonar/cache # Path to cache for SonarCloud scanner
-          key: ${{ runner.os }}-sonar-${{ hashFiles('**/package-lock.json') }} # Key ควรจะอิงกับ lockfile ด้วยเผื่อมีการเปลี่ยนแปลง tool versions ที่ Sonar ใช้
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-sonar-
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@67dbf889755728758178142b739969a08777d331 # v2.3.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub token สำหรับ PR analysis
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # SonarCloud token จาก GitHub Secrets
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          projectBaseDir: . # ระบุ root directory ของโปรเจค
+          projectBaseDir: .
 
   deploy:
-    name: Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
-    needs: build-and-test # รอให้ job build-and-test เสร็จก่อน
-    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Deploy เฉพาะเมื่อ push ไปยัง main branch
+    name: Deploy to Cloud Run
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1 - ดึงโค้ดสำหรับ deployment
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@55bd3a7cf7809941d071235f099831014828893c # v2.1.3 - เชื่อมต่อกับ Google Cloud
+        uses: google-github-actions/auth@55bd3a7cf7809941d071235f099831014828893c # v2.1.3
         with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}" # ใช้ Service Account key จาก GitHub Secrets
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
       - name: Set up gcloud CLI
-        uses: google-github-actions/setup-gcloud@2503748709498582100775903891a31f0f902612 # v2.1.0 - ติดตั้งและตั้งค่า gcloud CLI
+        uses: google-github-actions/setup-gcloud@2503748709498582100775903891a31f0f902612 # v2.1.0
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }} # ระบุ Google Cloud Project ID
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy to Cloud Run
-        run: | # คำสั่ง deploy ไปยัง Cloud Run
+        id: deploy
+        run: |
           gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --source . \
             --region ${{ secrets.GCP_REGION }} \
@@ -99,23 +99,23 @@ jobs:
             --concurrency 80 \
             --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules \
             --quiet
-
+          
       - name: Get deployment URL
-        id: get_url # Add an id to this step to reference its output
-        run: | # ดึง URL ของ service ที่ deploy แล้ว
+        id: get_url
+        run: |
           SERVICE_URL=$(gcloud run services describe ${{ secrets.CLOUD_RUN_SERVICE_NAME }} \
             --region ${{ secrets.GCP_REGION }} \
             --format 'value(status.url)')
-          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT # Output for next steps
-          echo "🚀 Application deployed successfully!" # แสดงข้อความสำเร็จ
-          echo "📱 Service URL: $SERVICE_URL" # แสดง URL ของ service
-          echo "🏥 Health Check: $SERVICE_URL/health" # แสดง URL สำหรับ health check
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "🚀 Application deployed successfully!"
+          echo "📱 Service URL: $SERVICE_URL"
+          echo "🏥 Health Check: $SERVICE_URL/health"
 
       - name: Verify deployment
-        run: | # ตรวจสอบว่า deployment ทำงานถูกต้อง
-          SERVICE_URL="${{ steps.get_url.outputs.SERVICE_URL }}" # Get URL from previous step
+        run: |
+          SERVICE_URL="${{ steps.get_url.outputs.SERVICE_URL }}"
           echo "Waiting for service to be ready..."
-          max_attempts=12 # Try for 12 * 10s = 120 seconds (2 minutes)
+          max_attempts=12
           attempt_num=1
           wait_seconds=10
           while [ $attempt_num -le $max_attempts ]; do
@@ -130,5 +130,3 @@ jobs:
             attempt_num=$((attempt_num+1))
           done
           echo "⚠️ Health check failed after $max_attempts attempts, but deployment completed. Please check the service manually."
-          # Optionally, you can make the workflow fail if health check fails after retries:
-          # exit 1
