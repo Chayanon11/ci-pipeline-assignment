@@ -1,4 +1,4 @@
-# name: CI with SonarCloud + Deploy to GCP (Optimized & Fixed)
+name: CI/CD with Cache and Optimizations (improved)
 
 on:
   push:
@@ -10,35 +10,40 @@ on:
 jobs:
   build-and-test:
     name: Build, Test and Analyze
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04 # ระบุเวอร์ชัน runner เพื่อความเสถียร
     steps:
       - name: Checkout code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "npm"
+          cache: "npm" # เปิดใช้ cache ของ npm (สำหรับ global packages)
 
+      # --- ส่วนที่เพิ่มเข้ามาเพื่อ Cache ขั้นตอน Install dependencies ---
       - name: Cache node_modules
         id: cache-node-modules
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2 - CORRECTED SHA
+        uses: actions/cache@v4 # ใช้ Tag เวอร์ชันล่าสุดที่เสถียร
         with:
+          # ระบุ path ของโฟลเดอร์ที่ต้องการ cache
           path: node_modules
+          # สร้าง key สำหรับ cache: ถ้า package-lock.json เปลี่ยน, cache จะถูกสร้างใหม่
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
+        # รัน "npm ci" ก็ต่อเมื่อไม่มี cache hit (หา cache ไม่เจอ)
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
-      - name: Show message if dependencies restored from cache
+      - name: Show message if dependencies are restored from cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: echo "Dependencies restored from cache."
+        run: echo "✅ Dependencies restored from cache. Skipping installation."
+      # --- จบส่วนของการ Cache ---
 
       - name: Run security audit
         run: npm audit --audit-level=moderate
@@ -49,16 +54,8 @@ jobs:
         env:
           NODE_ENV: test
 
-      - name: Cache SonarCloud packages
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2 - CORRECTED SHA
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-sonar-
-
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@67dbf889755728758178142b739969a08777d331 # v2.3.0
+        uses: SonarSource/sonarcloud-github-action@v2.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -69,18 +66,18 @@ jobs:
     name: Deploy to Cloud Run
     needs: build-and-test
     runs-on: ubuntu-24.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/main'
     steps:
       - name: Checkout code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4
 
       - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@55bd3a7cf7809941d071235f099831014828893c # v2.1.3
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
       - name: Set up gcloud CLI
-        uses: google-github-actions/setup-gcloud@2503748709498582100775903891a31f0f902612 # v2.1.0
+        uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
@@ -99,7 +96,7 @@ jobs:
             --concurrency 80 \
             --set-env-vars NODE_ENV=production,NODE_OPTIONS=--experimental-vm-modules \
             --quiet
-          
+
       - name: Get deployment URL
         id: get_url
         run: |
@@ -109,9 +106,8 @@ jobs:
           echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "🚀 Application deployed successfully!"
           echo "📱 Service URL: $SERVICE_URL"
-          echo "🏥 Health Check: $SERVICE_URL/health"
 
-      - name: Verify deployment
+      - name: Verify deployment (Improved)
         run: |
           SERVICE_URL="${{ steps.get_url.outputs.SERVICE_URL }}"
           echo "Waiting for service to be ready..."
@@ -129,4 +125,5 @@ jobs:
             sleep $wait_seconds
             attempt_num=$((attempt_num+1))
           done
-          echo "⚠️ Health check failed after $max_attempts attempts, but deployment completed. Please check the service manually."
+          echo "⚠️ Health check failed after $max_attempts attempts."
+          exit 1
