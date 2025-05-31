@@ -10,7 +10,7 @@ on:
 jobs:
   build-and-test:
     name: Build, Test and Analyze # ชื่องาน CI: Build, Test และ Code Analysis
-    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
+    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     steps:
       - name: Checkout code
         uses: actions/checkout@v4 # ดึงโค้ดจาก GitHub repository
@@ -45,7 +45,7 @@ jobs:
 
   deploy:
     name: Deploy to Cloud Run # ชื่องาน: Deploy ไปยัง Google Cloud Run
-    runs-on: ubuntu-latest # ใช้ runner Ubuntu เวอร์ชันล่าสุด
+    runs-on: ubuntu-24.04 # ใช้ runner Ubuntu เวอร์ชันล่าสุด
     needs: build-and-test # รอให้ job build-and-test เสร็จก่อน
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Deploy เฉพาะเมื่อ push ไปยัง main branch
 
