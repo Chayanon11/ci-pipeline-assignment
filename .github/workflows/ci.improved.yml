@@ -1,4 +1,4 @@
-name: CI/CD with Cache and Optimizations (improved)
+# name: CI/CD with Cache and Optimizations (Production Ready)
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 jobs:
   build-and-test:
     name: Build, Test and Analyze
-    runs-on: ubuntu-24.04 # ระบุเวอร์ชัน runner เพื่อความเสถียร
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,36 +21,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "npm" # เปิดใช้ cache ของ npm (สำหรับ global packages)
+          cache: "npm"
 
-      # --- ส่วนที่เพิ่มเข้ามาเพื่อ Cache ขั้นตอน Install dependencies ---
       - name: Cache node_modules
         id: cache-node-modules
-        uses: actions/cache@v4 # ใช้ Tag เวอร์ชันล่าสุดที่เสถียร
+        uses: actions/cache@v4
         with:
-          # ระบุ path ของโฟลเดอร์ที่ต้องการ cache
           path: node_modules
-          # สร้าง key สำหรับ cache: ถ้า package-lock.json เปลี่ยน, cache จะถูกสร้างใหม่
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        # รัน "npm ci" ก็ต่อเมื่อไม่มี cache hit (หา cache ไม่เจอ)
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Show message if dependencies are restored from cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: echo "✅ Dependencies restored from cache. Skipping installation."
-      # --- จบส่วนของการ Cache ---
 
       - name: Run security audit
         run: npm audit --audit-level=moderate
-        continue-on-error: false
+        continue-on-error: false # <--- จุดสำคัญที่อาจทำให้ Job ล้มเหลว
 
       - name: Run tests
-        run: npm run test:ci
+        run: npm run test:ci # <--- จุดสำคัญที่อาจทำให้ Job ล้มเหลว
         env:
           NODE_ENV: test
 
@@ -64,9 +59,9 @@ jobs:
 
   deploy:
     name: Deploy to Cloud Run
-    needs: build-and-test
+    needs: build-and-test # <--- Job นี้จะทำงานต่อเมื่อ build-and-test สำเร็จ
     runs-on: ubuntu-24.04
-    if: github.event_name == 'push' && github.ref == 'refs/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -126,4 +121,4 @@ jobs:
             attempt_num=$((attempt_num+1))
           done
           echo "⚠️ Health check failed after $max_attempts attempts."
-          exit 1
+          exit 1 # <--- ทำให้ Workflow fail ถ้า health check ไม่ผ่าน
