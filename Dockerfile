@@ -1,36 +1,29 @@
-# Use official Node.js runtime as base image
-FROM node:18-alpine
+# Dockerfile สำหรับแอป Node.js ด้วย Express.js
 
-# Set working directory
+# เริ่มต้นด้วย image พื้นฐานที่มี Node.js ติดตั้งไว้แล้ว
+FROM node:18
+
+# WORKDIR คือ directory หลักที่ container จะใช้เป็นพื้นที่ทำงาน (เหมือน cd /app)
+# ถ้า directory ยังไม่มี มันจะถูกสร้างขึ้น
 WORKDIR /app
 
-# Copy package files first (for better Docker layer caching)
+# COPY package*.json ./ 
+# คัดลอกไฟล์ package.json และ package-lock.json (ถ้ามี) ไปยัง WORKDIR ใน container
+# ขั้นตอนนี้แยกออกจากการ copy โค้ดทั้งหมด เพื่อให้ Docker ใช้ cache ในการติดตั้ง dependencies ได้
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# RUN npm install จะติดตั้ง dependencies ที่ระบุใน package.json
+RUN npm install
 
-# Copy application code
+# คัดลอกไฟล์ทั้งหมดจากเครื่องเรา (current directory) ไปไว้ใน WORKDIR ของ container
+# รวมถึง source code เช่น app.js, route/, middleware/ หรือไฟล์อื่นที่ใช้รันแอป
 COPY . .
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S appuser -u 1001
+# ระบุว่า container จะเปิดพอร์ต 4001 (แอป Express.js ของเราฟังอยู่ที่พอร์ตนี้)
+# EXPOSE ไม่ได้เปิด port จริง ๆ แต่ใช้เป็น metadata เพื่อบอก Kubernetes หรือ Docker tools อื่น ๆ
+EXPOSE 4001
 
-# Change ownership of the app directory
-RUN chown -R appuser:nodejs /app
-USER appuser
+# CMD เป็นคำสั่งสุดท้ายที่จะรันเมื่อ container เริ่มทำงาน
+# ที่นี่เรารัน npm start → ซึ่งจะรัน script ใน package.json (start: "node server.js" หรือคล้ายกัน)
+CMD ["npm", "start"]
 
-# Expose port (Cloud Run จะตั้งค่า PORT environment variable)
-EXPOSE $PORT
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV NODE_OPTIONS="--experimental-vm-modules"
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/health || exit 1
-
-# Start the application
-CMD ["node", "server.mjs"]
